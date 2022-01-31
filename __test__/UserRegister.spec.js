@@ -90,4 +90,16 @@ describe('User registry', () => {
     const response = await postUser({ [field]: value });
     expect(response.body.validationErrors[field]).toBe(expected);
   });
+
+  it('returns E-mail in use when email is already in use', async () => {
+    await User.create({ username: 'user1', email: 'user1@mail.com', password: 'P4ssword' });
+    const response = await postUser();
+    expect(response.body.validationErrors.email).toBe('E-mail is already in use');
+  });
+
+  it('returns both email is in use and username cannot be null', async () => {
+    await User.create({ username: 'user1', email: 'user1@mail.com', password: 'P4ssword' });
+    const response = await postUser({ username: null });
+    expect(Object.keys(response.body.validationErrors)).toEqual(['username', 'email']);
+  });
 });
