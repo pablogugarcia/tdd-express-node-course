@@ -1,0 +1,10 @@
+{
+    "usernameNull": "el nombre del usuario no puede estar vacio",
+    "emailNull": "E-mail no puede estar vacio",
+    "emailInvalid": "E-mail no es valido",
+    "passwordNull": "Contraseña no puede estar vacio",
+    "passwordLength": "Contraseña debe tener al menos 6 caracteres",
+    "passwordPattern": "Contraseña debe tener al menos 1 mayuscula, 1 minuscula y 1 numero",
+    "usernameLength": "El nombre de usuario debe tener entre 4 y 32 caracteres",
+    "emailInUser": "E-mail ya esta en uso"
+}
