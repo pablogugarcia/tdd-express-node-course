@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const sequelize = require('../src/config/database');
 const User = require('../src/user/User');
+const nodemailerStub = require('nodemailer-stub');
 
 beforeAll(() => {
   return sequelize.sync();
@@ -11,7 +12,10 @@ beforeEach(() => {
   return User.destroy({ truncate: true, cascade: true });
 });
 
-const postUser = ({ username = 'user1', email = 'user1@mail.com', password = 'P4ssword' } = {}, options = {}) => {
+const postUser = (
+  { username = 'user1', email = 'user1@mail.com', password = 'P4ssword', ...body } = {},
+  options = {}
+) => {
   const agent = request(app).post('/api/1.0/users');
 
   if (options.language) {
@@ -22,6 +26,7 @@ const postUser = ({ username = 'user1', email = 'user1@mail.com', password = 'P4
     username,
     email,
     password,
+    ...body,
   });
 };
 
@@ -117,6 +122,36 @@ describe('User registry', () => {
     await User.create({ username: 'user1', email: 'user1@mail.com', password: 'P4ssword' });
     const response = await postUser({ username: null });
     expect(Object.keys(response.body.validationErrors)).toEqual(['username', 'email']);
+  });
+
+  it('create an user in inactive mode', async () => {
+    await postUser();
+    const users = await User.findAll();
+    const savedUser = users[0];
+    expect(savedUser.inactive).toBe(true);
+  });
+
+  it('create an user in inactive mode even if request contains inactive as false', async () => {
+    await postUser({ inactive: false });
+    const users = await User.findAll();
+    const savedUser = users[0];
+    expect(savedUser.inactive).toBe(true);
+  });
+
+  it('create an user returns activationToken property', async () => {
+    await postUser({ inactive: false });
+    const users = await User.findAll();
+    const savedUser = users[0];
+    expect(savedUser.activationToken).toBeTruthy();
+  });
+
+  it('send an Account activation email with activationToken', async () => {
+    await postUser();
+    const lastMail = nodemailerStub.interactsWithMail.lastMail();
+    expect(lastMail.to[0]).toBe('user1@mail.com');
+    const users = await User.findAll();
+    const savedUser = users[0];
+    expect(lastMail.content).toContain(savedUser.activationToken);
   });
 });
 
