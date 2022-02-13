@@ -1,10 +1,11 @@
 {
-    "usernameNull": "username cannot be null",
-    "emailNull": "E-mail cannot be null",
-    "emailInvalid": "E-mail is not valid",
-    "passwordNull": "Password cannot be null",
-    "passwordLength": "Password must be at least 6 characters",
-    "passwordPattern": "Password must have at least 1 uppercase, 1 lowercase letter and 1 number",
-    "usernameLength": "Must have min 4 and max 32 characters",
-    "emailInUser": "E-mail is already in use"
+  "usernameNull": "username cannot be null",
+  "emailNull": "E-mail cannot be null",
+  "emailInvalid": "E-mail is not valid",
+  "passwordNull": "Password cannot be null",
+  "passwordLength": "Password must be at least 6 characters",
+  "passwordPattern": "Password must have at least 1 uppercase, 1 lowercase letter and 1 number",
+  "usernameLength": "Must have min 4 and max 32 characters",
+  "emailInUser": "E-mail is already in use",
+  "emailFailure": "Failed to deliver email"
 }

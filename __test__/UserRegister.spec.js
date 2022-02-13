@@ -2,13 +2,41 @@ const request = require('supertest');
 const app = require('../src/app');
 const sequelize = require('../src/config/database');
 const User = require('../src/user/User');
-const nodemailerStub = require('nodemailer-stub');
+const SMPTserver = require('smtp-server').SMTPServer;
 
+let lastMail, server;
+let simulateSmptFailure = false;
 beforeAll(() => {
+
+  server = new SMPTserver({
+    authOptional: true,
+    onData(stream, session, callback) {
+      let mailBody = ''
+      stream.on('data', (data) => {
+        mailBody += data.toString();
+      })
+      stream.on('end', () => {
+        if (simulateSmptFailure) {
+          const err = new Error('SMTP server error');
+          err.responseCode = 553;
+          return callback(err);
+        }
+        lastMail = mailBody;
+        callback();
+      })
+    }
+  })
+  server.listen(8587, 'localhost')
+
   return sequelize.sync();
 });
 
+afterAll(() => {
+  server.close();
+})
+
 beforeEach(() => {
+  simulateSmptFailure = false;
   return User.destroy({ truncate: true, cascade: true });
 });
 
@@ -147,12 +175,23 @@ describe('User registry', () => {
 
   it('send an Account activation email with activationToken', async () => {
     await postUser();
-    const lastMail = nodemailerStub.interactsWithMail.lastMail();
-    expect(lastMail.to[0]).toBe('user1@mail.com');
+    expect(lastMail).toContain('user1@mail.com');
     const users = await User.findAll();
     const savedUser = users[0];
-    expect(lastMail.content).toContain(savedUser.activationToken);
+    expect(lastMail).toContain(savedUser.activationToken);
   });
+
+  it('returns 502 Bad Gateway when sending emails fails', async () => {
+    simulateSmptFailure = true;
+    const response = await postUser();
+    expect(response.status).toBe(502);
+  })
+
+  it('returns E-mail failure message when sending emails fails', async () => {
+    simulateSmptFailure = true;
+    const response = await postUser();
+    expect(response.body.message).toBe('Failed to deliver email');
+  })
 });
 
 describe('Internationalization', () => {
@@ -164,6 +203,7 @@ describe('Internationalization', () => {
   const passwordPattern = 'Contraseña debe tener al menos 1 mayuscula, 1 minuscula y 1 numero';
   const usernameLength = 'El nombre de usuario debe tener entre 4 y 32 caracteres';
   const emailInUser = 'E-mail ya esta en uso';
+  const emailFailure = 'Fallo al enviar el correo';
 
   it.each`
     field         | value             | expected
@@ -189,4 +229,10 @@ describe('Internationalization', () => {
     const response = await postUser(undefined, { language: 'es' });
     expect(response.body.validationErrors.email).toBe(emailInUser);
   });
+
+  it(`returns ${emailFailure} message when sending emails fails`, async () => {
+    simulateSmptFailure = true;
+    const response = await postUser(undefined, { language: 'es' });
+    expect(response.body.message).toBe(emailFailure);
+  })
 });
