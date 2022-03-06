@@ -7,5 +7,8 @@
   "passwordPattern": "Contraseña debe tener al menos 1 mayuscula, 1 minuscula y 1 numero",
   "usernameLength": "El nombre de usuario debe tener entre 4 y 32 caracteres",
   "emailInUser": "E-mail ya esta en uso",
-  "emailFailure": "Fallo al enviar el correo"
+  "emailFailure": "Fallo al enviar el correo",
+  "invalidToken": "La cuenta ya esta activa o el token es invalido",
+  "validation_failure": "Fallo de validacion"
+
 }

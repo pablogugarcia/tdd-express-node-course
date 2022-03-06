@@ -2,38 +2,39 @@ const request = require('supertest');
 const app = require('../src/app');
 const sequelize = require('../src/config/database');
 const User = require('../src/user/User');
-const SMPTserver = require('smtp-server').SMTPServer;
+const { post } = require('../src/user/user.router');
+const SMTPServer = require('smtp-server').SMTPServer;
+const promisify = require('util').promisify;
 
 let lastMail, server;
 let simulateSmptFailure = false;
-beforeAll(() => {
-
-  server = new SMPTserver({
+beforeAll(async () => {
+  server = new SMTPServer({
     authOptional: true,
     onData(stream, session, callback) {
-      let mailBody = ''
+      let mailBody;
       stream.on('data', (data) => {
         mailBody += data.toString();
-      })
+      });
       stream.on('end', () => {
         if (simulateSmptFailure) {
-          const err = new Error('SMTP server error');
+          const err = new Error('Invalid mailbox');
           err.responseCode = 553;
           return callback(err);
         }
         lastMail = mailBody;
         callback();
-      })
-    }
-  })
-  server.listen(8587, 'localhost')
+      });
+    },
+  });
 
-  return sequelize.sync();
+  server.listen(8587, 'localhost');
+  await sequelize.sync();
 });
 
-afterAll(() => {
-  server.close();
-})
+afterAll(async () => {
+  await server.close();
+});
 
 beforeEach(() => {
   simulateSmptFailure = false;
@@ -185,13 +186,18 @@ describe('User registry', () => {
     simulateSmptFailure = true;
     const response = await postUser();
     expect(response.status).toBe(502);
-  })
+  });
 
   it('returns E-mail failure message when sending emails fails', async () => {
     simulateSmptFailure = true;
     const response = await postUser();
     expect(response.body.message).toBe('Failed to deliver email');
-  })
+  });
+
+  it('returns validation fail message in error response body when validation fails ', async () => {
+    const response = await postUser({ username: null });
+    expect(response.body.message).toBe('Validation failed');
+  });
 });
 
 describe('Internationalization', () => {
@@ -204,6 +210,7 @@ describe('Internationalization', () => {
   const usernameLength = 'El nombre de usuario debe tener entre 4 y 32 caracteres';
   const emailInUser = 'E-mail ya esta en uso';
   const emailFailure = 'Fallo al enviar el correo';
+  const validationFailure = 'Fallo de validacion';
 
   it.each`
     field         | value             | expected
@@ -234,5 +241,90 @@ describe('Internationalization', () => {
     simulateSmptFailure = true;
     const response = await postUser(undefined, { language: 'es' });
     expect(response.body.message).toBe(emailFailure);
+  });
+
+  it(`returns ${validationFailure} message in error response body when validation fails `, async () => {
+    const response = await postUser({ username: null });
+    expect(response.body.message).toBe('Validation failed');
+  });
+});
+
+describe('Activation token', () => {
+  it('activates the account when token is sent', async () => {
+    await postUser();
+    let users = await User.findAll();
+    const savedUser = users[0];
+    await request(app).post('/api/1.0/users/token/' + savedUser.activationToken);
+    users = await User.findAll();
+    const activatedUser = users[0];
+    expect(activatedUser.inactive).toBe(false);
+  });
+
+  it('removes activationToken when user is activated', async () => {
+    await postUser();
+    let users = await User.findAll();
+    const savedUser = users[0];
+    await request(app).post('/api/1.0/users/token/' + savedUser.activationToken);
+    users = await User.findAll();
+    const activatedUser = users[0];
+    expect(activatedUser.activationToken).toBeNull();
+  });
+
+  it('does not activate account when the token is wrong', async () => {
+    const badToken = 'This token does not exists';
+
+    await postUser();
+    await request(app).post('/api/1.0/users/token/' + badToken);
+    users = await User.findAll();
+    const activatedUser = users[0];
+    expect(activatedUser.inactive).toBe(true);
+  });
+
+  it('returns bad request exception when the token is wrong', async () => {
+    const badToken = 'This token does not exists';
+
+    await postUser();
+    const response = await request(app).post('/api/1.0/users/token/' + badToken);
+    users = await User.findAll();
+    const activatedUser = users[0];
+    expect(response.status).toBe(400);
+  });
+
+  it.each`
+    language | expected
+    ${'es'}  | ${'La cuenta ya esta activa o el token es invalido'}
+    ${'en'}  | ${'this account is either already activated or the token is invalid'}
+  `('returns $expected when the token is sent and language is $language', async ({ language, expected }) => {
+    const badToken = 'This token does not exists';
+
+    const response = await request(app)
+      .post('/api/1.0/users/token/' + badToken)
+      .set('Accept-Language', language);
+    expect(response.body.message).toBe(expected);
+  });
+});
+
+describe('Error model', () => {
+  it('returns path, timestamp, message and validationErrors in response when validation fails', async () => {
+    const response = await postUser({ username: null });
+    expect(Object.keys(response.body)).toEqual(['path', 'timestamp', 'message', 'validationErrors']);
+  });
+
+  it('return path, timestamp and message in response when request fails other then validation erorrs', async () => {
+    const badToken = 'This token does not exists';
+
+    await postUser();
+    const response = await request(app).post('/api/1.0/users/token/' + badToken);
+    expect(Object.keys(response.body)).toEqual(['path', 'timestamp', 'message']);
+  });
+
+  it('returns path in error body', async () => {
+    const response = await postUser({ username: null });
+    expect(response.body.path).toBe('/api/1.0/users');
+  })
+
+  it('returns timestamp in error body', async () => {
+    const response = await postUser({ username: null });
+    expect(response.body.timestamp).toBeTruthy();
   })
 });

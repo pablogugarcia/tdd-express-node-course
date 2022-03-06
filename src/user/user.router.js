@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const UserService = require('./UserService');
 const { check, validationResult } = require('express-validator');
+const ValidationException = require('../error/ValidationException');
 
 router.post(
   '/api/1.0/users',
@@ -32,23 +33,30 @@ router.post(
     .bail()
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/)
     .withMessage('passwordPattern'),
-  async (req, res) => {
+  async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      const validationErrors = {};
-      errors.array().forEach((error) => {
-        validationErrors[error.param] = req.t(error.msg);
-      });
-      return res.status(400).json({ validationErrors });
+      return next(new ValidationException(errors.array()));
     }
 
     try {
       await UserService.save(req.body);
       res.send({ message: 'User created' });
     } catch (error) {
-      res.status(502).send({message: req.t(error.message)});
+      // npres.status(502).send({ message: req.t(error.message) });
+      next({ message: error.message, status: 502 });
     }
   }
 );
+
+router.post('/api/1.0/users/token/:token', async (req, res, next) => {
+  const token = req.params.token;
+  try {
+    await UserService.activate(token);
+    res.send({ message: 'User confirmed' });
+  } catch (error) {
+    return next({ message: error.message, status: 400 });
+  }
+});
 
 module.exports = router;
