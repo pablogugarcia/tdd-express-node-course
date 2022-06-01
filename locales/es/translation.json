@@ -9,6 +9,6 @@
   "emailInUser": "E-mail ya esta en uso",
   "emailFailure": "Fallo al enviar el correo",
   "invalidToken": "La cuenta ya esta activa o el token es invalido",
-  "validation_failure": "Fallo de validacion"
-
+  "validation_failure": "Fallo de validacion",
+  "user_not_found": "Usuario no encontrado"
 }

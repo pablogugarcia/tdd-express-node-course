@@ -9,5 +9,6 @@
   "emailInUser": "E-mail is already in use",
   "emailFailure": "Failed to deliver email",
   "invalidToken": "this account is either already activated or the token is invalid",
-  "validation_failure": "Validation failed"
+  "validation_failure": "Validation failed",
+  "user_not_found": "User not found"
 }
